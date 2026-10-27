@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Thailand COVID-19 Dashboard | Public Health Analytics</title>
+<link rel="preconnect" href="https://unpkg.com"><link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--ink:#17243b;--muted:#68758a;--bg:#f4f7fb;--card:#fff;--line:#e4eaf2;--blue:#2458d3;--teal:#0e8b8b;--orange:#e78a26;--red:#d84a54}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif}header{background:linear-gradient(120deg,#102b58,#2458d3);color:#fff;padding:24px max(18px,calc((100% - 1440px)/2)) 22px}header h1{margin:0 0 7px;font-size:clamp(1.35rem,3vw,2rem)}header p{margin:0;color:#dce7ff;line-height:1.6}.wrap{max-width:1440px;margin:auto;padding:18px}.sourcebar,.panel,.kpi,.filters{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 4px 18px #17243b08}.sourcebar{padding:14px;margin-bottom:16px}.sourcebar label{font-weight:700;display:block;margin-bottom:7px}.urlrow{display:flex;gap:8px}.urlrow input{flex:1;min-width:0}.urlrow input,input,select,button{font:inherit;border-radius:9px;border:1px solid #d3dce8;padding:10px 12px;background:#fff;color:var(--ink)}button{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700;cursor:pointer}button.secondary{background:#fff;color:var(--blue)}button:disabled{opacity:.6;cursor:wait}.hint,.muted{font-size:.87rem;color:var(--muted);line-height:1.55}.status{margin-top:8px;font-size:.9rem}.status.error{color:#b42332}.status.ok{color:#087b55}.filters{padding:15px;margin-bottom:16px}.filters h2{font-size:1.05rem;margin:0 0 12px}.filtergrid{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:10px}.field label{display:block;font-size:.82rem;font-weight:700;color:#536178;margin-bottom:5px}.field select,.field input{width:100%}.actions{display:flex;gap:8px;align-items:end}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}.kpi{padding:16px}.kpi .label{font-size:.86rem;color:var(--muted)}.kpi .value{font-size:clamp(1.35rem,3vw,2rem);font-weight:800;margin:7px 0 3px;overflow-wrap:anywhere}.kpi .sub{font-size:.8rem;color:var(--muted)}.layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.panel{padding:14px;min-width:0}.panel h2{font-size:1rem;margin:0 0 4px}.panel p{font-size:.82rem;color:var(--muted);margin:0 0 8px;line-height:1.5}.chart{width:100%;height:340px}.map{height:470px;border-radius:10px;overflow:hidden}.wide{grid-column:1/-1}.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:.82rem;color:var(--muted);margin-top:8px}.note{background:#fff8e8;border:1px solid #f0d9a7;padding:13px 15px;border-radius:12px;margin:16px 0;font-size:.88rem;line-height:1.65}.foot{font-size:.82rem;color:var(--muted);line-height:1.7;padding:12px 2px 28px}.small{font-size:.78rem;color:var(--muted)}.loading{opacity:.65;pointer-events:none}
+@media(max-width:950px){.filtergrid{grid-template-columns:repeat(3,minmax(0,1fr))}.kpis{grid-template-columns:repeat(2,1fr)}.layout{grid-template-columns:1fr}.wide{grid-column:auto}.map{height:400px}}
+@media(max-width:560px){.wrap{padding:11px}.filtergrid{grid-template-columns:repeat(2,minmax(0,1fr))}.urlrow{flex-direction:column}.kpi{padding:12px}.chart{height:300px}.map{height:360px}header{padding:20px 16px}}
+</style>
+</head>
+<body>
+<header><h1>Dashboard วิเคราะห์ข้อมูล COVID-19 ประเทศไทย</h1><p>Public Health Informatics · สำรวจระเบียนตามพื้นที่เริ่มป่วย วันที่ เพศ และช่วงอายุ</p></header>
+<main class="wrap">
+<section class="sourcebar">
+<label for="csvUrl">แหล่งข้อมูล CSV ออนไลน์ (Google Sheets เผยแพร่เป็น CSV)</label>
+<div class="urlrow"><input id="csvUrl" type="url" spellcheck="false" placeholder="วาง URL CSV ที่นี่"><button id="loadBtn">โหลด / รีเฟรชข้อมูล</button><button id="sampleBtn" class="secondary" title="ใส่ URL ที่ตั้งค่าไว้">ใช้ URL ตั้งต้น</button></div>
+<div class="hint">Dashboard จะใช้ข้อมูลออนไลน์จาก URL นี้ ไม่สร้างข้อมูลจำลอง หากโหลดไม่ได้จะแจ้งข้อผิดพลาดแทนการแสดงผลลัพธ์ปลอม</div>
+<div id="status" class="status" role="status" aria-live="polite">กำลังเตรียม Dashboard…</div>
+</section>
+<section class="filters">
+<h2>ตัวกรองข้อมูล</h2>
+<div class="filtergrid">
+<div class="field"><label for="provinceFilter">จังหวัดเริ่มป่วย</label><select id="provinceFilter"><option value="">ทุกจังหวัด</option></select></div>
+<div class="field"><label for="districtFilter">อำเภอเริ่มป่วย</label><select id="districtFilter"><option value="">ทุกอำเภอ</option></select></div>
+<div class="field"><label for="sexFilter">เพศ</label><select id="sexFilter"><option value="">ทุกเพศ/ไม่ระบุ</option></select></div>
+<div class="field"><label for="ageFilter">ช่วงอายุ</label><select id="ageFilter"><option value="">ทุกช่วงอายุ</option><option value="unknown">ไม่ระบุอายุ</option><option value="0-9">0–9 ปี</option><option value="10-19">10–19 ปี</option><option value="20-29">20–29 ปี</option><option value="30-39">30–39 ปี</option><option value="40-49">40–49 ปี</option><option value="50-59">50–59 ปี</option><option value="60-69">60–69 ปี</option><option value="70+">70 ปีขึ้นไป</option></select></div>
+<div class="field"><label for="dateFrom">วันที่เริ่ม (วันประกาศ)</label><input id="dateFrom" type="date"></div>
+<div class="field"><label for="dateTo">วันที่สิ้นสุด (วันประกาศ)</label><input id="dateTo" type="date"></div>
+<div class="actions"><button id="resetBtn" class="secondary">ล้างตัวกรอง</button></div>
+</div>
+<p class="hint">วันที่ในตัวกรองและ Epidemic Curve ใช้คอลัมน์ <b>announce_date (วันที่ประกาศ)</b> เป็นหลัก หากวันที่นี้ว่าง จะไม่สามารถจัดเข้าช่วงเวลาได้</p>
+</section>
+<section class="kpis">
+<div class="kpi"><div class="label">จำนวนระเบียนตามตัวกรอง</div><div class="value" id="kTotal">—</div><div class="sub">นับแถวที่ผ่านตัวกรอง</div></div>
+<div class="kpi"><div class="label">ข้อมูลที่ขาดหาย</div><div class="value" id="kMissing">—</div><div class="sub" id="kMissingSub">ช่องว่างรวมทุกคอลัมน์</div></div>
+<div class="kpi"><div class="label">วันที่ประกาศล่าสุดในข้อมูล</div><div class="value" id="kLatest">—</div><div class="sub">จากระเบียนที่ผ่านตัวกรอง</div></div>
+<div class="kpi"><div class="label">จังหวัดเริ่มป่วยที่พบมากสุด</div><div class="value" id="kProvince">—</div><div class="sub" id="kProvinceSub">นับจาก province_of_onset</div></div>
+</section>
+<section class="layout">
+<div class="panel"><h2>Epidemic Curve</h2><p>จำนวนระเบียนต่อวัน โดยใช้ announce_date (วันที่ประกาศ) ไม่ใช่วันที่เริ่มป่วย</p><div id="epicurve" class="chart"></div></div>
+<div class="panel"><h2>จำนวนระเบียนตามเพศ</h2><p>รวมหมวดที่ไม่ระบุเพศไว้แยกต่างหาก</p><div id="sexChart" class="chart"></div></div>
+<div class="panel"><h2>จำนวนระเบียนตามช่วงอายุ</h2><p>ใช้ age เป็นตัวเลขและแบ่งช่วงอายุ 10 ปี</p><div id="ageChart" class="chart"></div></div>
+<div class="panel"><h2>จังหวัดเริ่มป่วยที่มีระเบียนมากที่สุด</h2><p>ใช้ province_of_onset เท่านั้น ไม่ใช้จังหวัดแยกกักแทน</p><div id="provinceChart" class="chart"></div></div>
+<div class="panel wide"><h2>แผนที่ประเทศไทยระดับจังหวัด (Choropleth)</h2><p>แรเงาตามจำนวนระเบียนที่ระบุจังหวัดเริ่มป่วย ขอบเขตจาก geoBoundaries ADM1; ชื่อพื้นที่ที่จับคู่ไม่ได้จะไม่ถูกนำไปผูกกับจังหวัดอื่นโดยคาดเดา</p><div id="provinceMap" class="map"></div><div id="provinceMapMsg" class="small"></div></div>
+<div class="panel wide"><h2>แผนที่จุดระดับอำเภอเริ่มป่วย</h2><p>จุดแสดงตำแหน่งศูนย์กลางอำเภอโดยประมาณ ไม่ใช่ตำแหน่งบ้านหรือพิกัดรายบุคคล ขนาดจุดสัมพันธ์กับจำนวนระเบียน</p><div id="districtMap" class="map"></div><div id="districtMapMsg" class="small"></div></div>
+</section>
+<div class="note"><b>ข้อจำกัดและการตีความ</b><br>
+• ชุดข้อมูลนี้มีคอลัมน์ No., announce_date, Notified date, sex, age, Unit, nationality, province_of_isolation, risk, province_of_onset และ district_of_onset ไม่มีคอลัมน์สถานะการเสียชีวิต จึงไม่สามารถรายงานจำนวนผู้เสียชีวิตได้<br>
+• จำนวนทั้งหมดหมายถึง “จำนวนระเบียน/ผู้ป่วยตามชุดข้อมูล” ไม่จำเป็นต้องเท่ากับจำนวนผู้ป่วยปัจจุบันหรือจำนวนผู้ป่วยที่ยืนยันแล้วในระบบอื่น<br>
+• พื้นที่แผนที่จังหวัดมาจากขอบเขต ADM1 ที่โหลดจาก geoBoundaries ส่วนจุดอำเภอใช้ centroid ที่คำนวณจากขอบเขต ADM2 หากโหลดขอบเขตอำเภอไม่ได้ แผนที่จุดจะไม่สร้างพิกัดขึ้นเอง<br>
+• ต้องตรวจสอบการสะกด/รูปแบบชื่อจังหวัดและอำเภอไทยใน CSV เทียบกับ GeoJSON จริง โดยเฉพาะชื่อที่มีคำว่า “เมือง”, ชื่ออำเภอซ้ำข้ามจังหวัด, “ต่างจังหวัด”, ค่าว่าง และชื่อที่อาจเป็นข้อความแทนสถานที่
+</div>
+<footer class="foot">แหล่งข้อมูลระเบียน: URL CSV ที่ผู้ใช้กำหนด · ขอบเขตภูมิศาสตร์: geoBoundaries (ADM1/ADM2) · แผนที่: Leaflet/OpenStreetMap · กราฟ: Plotly.js · CSV parser: Papa Parse<br>วันที่ตรวจสอบข้อมูลจะแสดงจากเวลาที่ Dashboard โหลดข้อมูลสำเร็จ และวันที่ประกาศล่าสุดที่พบในข้อมูลจะแสดงแยกต่างหาก</footer>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+'use strict';
+const DEFAULT_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT4PGZBF9hp7qWDxG5dZdR-NdbwxxMsLIc4N_NZYHXIIydcGfViIGjnlF91l-elSQyQW8sbOVobXnLQ/pub?output=csv';
+const REQUIRED = ['No.','announce_date','Notified date','sex','age','Unit','nationality','province_of_isolation','risk','province_of_onset','district_of_onset'];
+const $ = id => document.getElementById(id);
+let rawRows=[], rows=[], adm1=null, adm2=null, provinceMap=null, districtMap=null, provinceLayer=null, districtLayer=null, districtMarkers=null, lastLoaded=null;
+const fmt = n => Number(n).toLocaleString('th-TH');
+const blank = v => v===null || v===undefined || String(v).trim()==='';
+const clean = v => blank(v) ? '' : String(v).trim().replace(/\s+/g,' ');
+function status(msg,type='') { $('status').textContent=msg; $('status').className='status '+type; }
+function parseDate(v) {
+  if(blank(v)) return null;
+  const s=String(v).trim();
+  let m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  if(m){let a=+m[1],b=+m[2],y=+m[3]; if(y>2400)y-=543; // data normally d/m/yyyy; resolve first field as day
+    const d=new Date(Date.UTC(y,b-1,a)); return d.getUTCFullYear()===y&&d.getUTCMonth()===b-1&&d.getUTCDate()===a?d:null;}
+  m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m){let y=+m[1];if(y>2400)y-=543;const d=new Date(Date.UTC(y,+m[2]-1,+m[3]));return isNaN(d)?null:d;}
+  const d=new Date(s); return isNaN(d)?null:d;
+}
+function iso(d){return d?`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`:''}
+function dateTH(d){return d?d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}):'ไม่ระบุ'}
+function dateRangeText(d){return d?iso(d):''}
+function norm(s){return clean(s).toLowerCase().replace(/จังหวัด/g,'').replace(/จ\./g,'').replace(/อำเภอ/g,'').replace(/อ\./g,'').replace(/เขต/g,'').replace(/เมืองเชียงใหม่/g,'เมืองเชียงใหม่').replace(/\s/g,'')}
+function ageBand(v){if(blank(v)||!Number.isFinite(Number(v)))return 'ไม่ระบุอายุ';const n=Number(v);if(n<0)return 'ไม่ระบุอายุ';if(n<10)return '0–9 ปี';if(n<20)return '10–19 ปี';if(n<30)return '20–29 ปี';if(n<40)return '30–39 ปี';if(n<50)return '40–49 ปี';if(n<60)return '50–59 ปี';if(n<70)return '60–69 ปี';return '70 ปีขึ้นไป'}
+function ageFilterMatch(r,v){if(!v)return true;if(v==='unknown')return ageBand(r.age)==='ไม่ระบุอายุ';const n=Number(r.age);if(blank(r.age)||!Number.isFinite(n))return false;if(v==='70+')return n>=70;const [lo,hi]=v.split('-').map(Number);return n>=lo&&n<=hi}
+function setOptions(id, vals, label){const el=$(id),old=el.value;const opts=[['',label],...vals.filter(x=>!blank(x)).sort((a,b)=>a.localeCompare(b,'th')).map(x=>[x,x])];el.replaceChildren(...opts.map(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;return o}));if(opts.some(x=>x[0]===old))el.value=old}
+function fillFilters(){
+ setOptions('provinceFilter',[...new Set(rawRows.map(r=>clean(r.province_of_onset)))],'ทุกจังหวัด');
+ setOptions('sexFilter',[...new Set(rawRows.map(r=>clean(r.sex)))],'ทุกเพศ/ไม่ระบุ');
+ updateDistrictOptions();
+ const dates=rawRows.map(r=>parseDate(r.announce_date)).filter(Boolean).map(iso).sort();
+ if(dates.length){$('dateFrom').min=dates[0];$('dateFrom').max=dates[dates.length-1];$('dateTo').min=dates[0];$('dateTo').max=dates[dates.length-1];}
+}
+function updateDistrictOptions(){const p=$('provinceFilter').value;setOptions('districtFilter',[...new Set(rawRows.filter(r=>!p||clean(r.province_of_onset)===p).map(r=>clean(r.district_of_onset)))],'ทุกอำเภา');}
+function filtered(){
+ const p=$('provinceFilter').value,d=$('districtFilter').value,s=$('sexFilter').value,a=$('ageFilter').value,from=$('dateFrom').value,to=$('dateTo').value;
+ return rawRows.filter(r=>{const dt=parseDate(r.announce_date),di=dt?iso(dt):'';return (!p||clean(r.province_of_onset)===p)&&(!d||clean(r.district_of_onset)===d)&&(!s||clean(r.sex)===s)&&ageFilterMatch(r,a)&&(!from||(di&&di>=from))&&(!to||(di&&di<=to));});
+}
+function countBy(data, fn){const m=new Map();for(const r of data){const k=fn(r);m.set(k,(m.get(k)||0)+1)}return [...m.entries()].sort((a,b)=>b[1]-a[1])}
+const plotLayout={margin:{l:55,r:18,t:10,b:65},paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',font:{family:'Tahoma, sans-serif',color:'#26364d'},xaxis:{gridcolor:'#e9eef5'},yaxis:{gridcolor:'#e9eef5'},autosize:true};
+function plot(id,data,layout={}){if(!window.Plotly)return;Plotly.react(id,data,{...plotLayout,...layout},{responsive:true,displaylogo:false,modeBarButtonsToRemove:['lasso2d','select2d']})}
+function renderCharts(data){
+ $('kTotal').textContent=fmt(data.length);
+ let missing=0;for(const r of data)for(const c of REQUIRED)if(blank(r[c]))missing++;
+ $('kMissing').textContent=fmt(missing);$('kMissingSub').textContent=`ช่องว่างรวม ${REQUIRED.length} คอลัมน์ · เฉพาะระเบียนที่กรอง`;
+ const dates=data.map(r=>parseDate(r.announce_date)).filter(Boolean).sort((a,b)=>a-b);$('kLatest').textContent=dates.length?dateTH(dates[dates.length-1]):'ไม่พบวันที่';$('kProvince').textContent='—';$('kProvinceSub').textContent='นับจาก province_of_onset';
+ const prov=countBy(data,r=>clean(r.province_of_onset)||'ไม่ระบุจังหวัด').filter(x=>x[0]!=='ไม่ระบุจังหวัด');
+ if(prov.length){$('kProvince').textContent=prov[0][0];$('kProvinceSub').textContent=`${fmt(prov[0][1])} ระเบียน`;}
+ const dayMap=new Map();data.forEach(r=>{const d=parseDate(r.announce_date);if(d){const k=iso(d);dayMap.set(k,(dayMap.get(k)||0)+1)}});
+ const dayKeys=[...dayMap.keys()].sort();
+ plot('epicurve',[{x:dayKeys,y:dayKeys.map(k=>dayMap.get(k)),type:'scatter',mode:'lines',fill:'tozeroy',line:{color:'#2458d3',width:2},hovertemplate:'วันที่ %{x}<br>จำนวนระเบียน %{y:,}<extra></extra>'}],{xaxis:{...plotLayout.xaxis,title:'วันที่ประกาศ',type:'date'},yaxis:{...plotLayout.yaxis,title:'จำนวนระเบียน'},margin:{l:60,r:15,t:10,b:55}});
+ const sx=countBy(data,r=>clean(r.sex)||'ไม่ระบุ');plot('sexChart',[{type:'bar',x:sx.map(x=>x[0]),y:sx.map(x=>x[1]),marker:{color:'#0e8b8b'},hovertemplate:'%{x}: %{y:,}<extra></extra>'}],{xaxis:{title:'เพศ'},yaxis:{title:'จำนวนระเบียน'},margin:{l:60,r:15,t:10,b:60}});
+ const order=['0–9 ปี','10–19 ปี','20–29 ปี','30–39 ปี','40–49 ปี','50–59 ปี','60–69 ปี','70 ปีขึ้นไป','ไม่ระบุอายุ'];const ax=countBy(data,r=>ageBand(r.age));const am=new Map(ax);plot('ageChart',[{type:'bar',x:order,y:order.map(k=>am.get(k)||0),marker:{color:'#e78a26'},hovertemplate:'%{x}: %{y:,}<extra></extra>'}],{xaxis:{title:'ช่วงอายุ'},yaxis:{title:'จำนวนระเบียน'},margin:{l:60,r:15,t:10,b:60}});
+ const top=prov.slice(0,15).reverse();plot('provinceChart',[{type:'bar',orientation:'h',y:top.map(x=>x[0]),x:top.map(x=>x[1]),marker:{color:'#2458d3'},hovertemplate:'%{y}: %{x:,}<extra></extra>'}],{xaxis:{title:'จำนวนระเบียน'},yaxis:{automargin:true},margin:{l:120,r:15,t:10,b:45}});
+ renderMaps(data);
+}
+function featureName(f){const p=f.properties||{};for(const k of ['shapeName','NAME_1','NAME_2','name','NAME','name_th','prov_name','ADM1_TH','ADM2_TH','จังหวัด','อำเภอ'])if(p[k])return String(p[k]);return ''}
+function featureProps(f){return Object.keys(f.properties||{}).join(', ')}
+function addMapBase(id){const map=L.map(id).setView([15.2,101],5.5);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors'}).addTo(map);return map}
+function makeCountLookup(data,field){const m=new Map();data.forEach(r=>{const k=norm(r[field]);if(k)m.set(k,(m.get(k)||0)+1)});return m}
+function renderMaps(data){
+ const pm=makeCountLookup(data,'province_of_onset');
+ if(provinceMap&&adm1){const vals=adm1.features.map(f=>pm.get(norm(featureName(f)))||0),max=Math.max(1,...vals);
+ if(provinceLayer)provinceMap.removeLayer(provinceLayer); provinceLayer=L.geoJSON(adm1,{style:f=>{const n=pm.get(norm(featureName(f)))||0;return {weight:.7,color:'#fff',fillOpacity:n?0.25+0.7*n/max:0.08,fillColor:n?'#2458d3':'#aab6c8'}},onEachFeature:(f,l)=>{const n=pm.get(norm(featureName(f)))||0;l.bindTooltip(`${featureName(f)}<br>จำนวนระเบียน: ${fmt(n)}`);}}).addTo(provinceMap);
+ $('provinceMapMsg').textContent=`จับคู่ชื่อจังหวัดจาก GeoJSON: ${vals.filter(v=>v>0).length} พื้นที่มีระเบียน · ฟิลด์ชื่อ GeoJSON: ${featureProps(adm1.features[0]||{})}`;
+ }else $('provinceMapMsg').textContent='ยังไม่มีขอบเขตจังหวัดที่โหลดสำเร็จ จึงไม่แสดง choropleth';
+ if(districtMap&&adm2){
+   const dm=new Map();data.forEach(r=>{const p=clean(r.province_of_onset),d=clean(r.district_of_onset);if(!p||!d||norm(d)==='ต่างจังหวัด')return;const k=norm(p)+'|'+norm(d);dm.set(k,(dm.get(k)||0)+1)});
+   const bounds=[];let matched=0;const layer=L.geoJSON(adm2,{style:()=>({weight:.35,color:'#b7c3d4',fillOpacity:0.02,fillColor:'#e9eef5'}),onEachFeature:(f,l)=>{const name=featureName(f),props=f.properties||{};const province=props.shapeGroup||props.NAME_1||props.province||props.prov_name||props.ADM1_TH||props['จังหวัด']||'';const key=norm(province)+'|'+norm(name);const n=dm.get(key)||0;if(n>0){matched+=n;const c=l.getBounds().getCenter();bounds.push([c.lat,c.lng,n,province,name]);}}}).addTo(districtMap);
+   // Some boundary datasets do not carry parent province in standard properties; only plot when both names can be identified.
+   if(districtMarkers)districtMap.removeLayer(districtMarkers);districtMarkers=L.layerGroup().addTo(districtMap);const grouped=new Map();bounds.forEach(([lat,lng,n,p,d])=>{const k=p+'|'+d;if(!grouped.has(k))grouped.set(k,{lat,lng,n,p,d});else grouped.get(k).n+=n});
+   let plotted=0;const max=Math.max(1,...[...grouped.values()].map(x=>x.n));
+   grouped.forEach(x=>{L.circleMarker([x.lat,x.lng],{radius:5+9*Math.sqrt(x.n/max),color:'#fff',weight:1,fillColor:'#d84a54',fillOpacity:.78}).bindTooltip(`${x.d}${x.p?' · '+x.p:''}<br>จำนวนระเบียน: ${fmt(x.n)}<br>ศูนย์กลางอำเภอโดยประมาณ`).addTo(districtMarkers);plotted++});
+   $('districtMapMsg').textContent=`แสดงจุดศูนย์กลางอำเภอที่จับคู่ชื่อได้ ${fmt(plotted)} จุด · จำนวนระเบียนที่จับคู่ได้ ${fmt(matched)} · หากไม่พบฟิลด์จังหวัดในขอบเขต ADM2 อาจไม่สามารถจับคู่ชื่ออำเภอได้ครบ`;
+ }else $('districtMapMsg').textContent='ยังไม่มีขอบเขตอำเภอที่โหลดสำเร็จ จึงไม่สร้างจุดตำแหน่งขึ้นเอง';
+}
+async function loadBoundaries(){
+ const api1='https://www.geoboundaries.org/api/current/gbOpen/THA/ADM1/';
+ const api2='https://www.geoboundaries.org/api/current/gbOpen/THA/ADM2/';
+ try{
+  const [r1,r2]=await Promise.all([fetch(api1),fetch(api2)]);
+  if(!r1.ok)throw new Error('โหลดข้อมูลขอบเขตจังหวัดไม่สำเร็จ');
+  const m1=await r1.json();const g1=await fetch(m1.gjDownloadURL);if(!g1.ok)throw new Error('ดาวน์โหลด GeoJSON จังหวัดไม่สำเร็จ');adm1=await g1.json();
+  if(r2.ok){const m2=await r2.json();const g2=await fetch(m2.gjDownloadURL);if(g2.ok)adm2=await g2.json();}
+  if(!provinceMap)provinceMap=addMapBase('provinceMap');if(!districtMap)districtMap=addMapBase('districtMap');
+  if(rawRows.length)renderMaps(filtered());
+ }catch(e){console.warn(e);$('provinceMapMsg').textContent='โหลดขอบเขตภูมิศาสตร์ไม่สำเร็จ: '+e.message;$('districtMapMsg').textContent='ไม่แสดงพิกัดอำเภอ เนื่องจากไม่มีขอบเขตอำเภอที่ตรวจสอบได้';}
+}
+async function loadCSV(){
+ const url=$('csvUrl').value.trim();if(!url){status('กรุณาวาง URL CSV ก่อนโหลดข้อมูล','error');return}
+ $('loadBtn').disabled=true;status('กำลังโหลดและตรวจสอบคอลัมน์ CSV…');document.body.classList.add('loading');
+ try{
+  const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status} — ตรวจสอบ URL และสิทธิ์การเผยแพร่ Google Sheets`);
+  const text=await response.text();if(!text.trim())throw new Error('ไฟล์ CSV ว่างเปล่า');
+  const result=Papa.parse(text,{header:true,skipEmptyLines:'greedy',dynamicTyping:false});
+  if(result.errors.some(e=>e.type==='Delimiter'))throw new Error('อ่านรูปแบบ CSV ไม่สำเร็จ');
+  const fields=(result.meta.fields||[]).map(x=>x.trim());const missing=REQUIRED.filter(c=>!fields.includes(c));
+  if(missing.length)throw new Error('ไม่พบคอลัมน์ที่จำเป็น: '+missing.join(', ')+' | คอลัมน์ที่อ่านได้: '+fields.join(', '));
+  rawRows=result.data.map(r=>{const o={};fields.forEach(k=>o[k.trim()]=r[k]);return o;}).filter(r=>Object.values(r).some(v=>!blank(v)));
+  if(!rawRows.length)throw new Error('ไม่พบระเบียนข้อมูลหลังอ่าน CSV');
+  lastLoaded=new Date();fillFilters();renderCharts(filtered());
+  const allDates=rawRows.map(r=>parseDate(r.announce_date)).filter(Boolean).sort((a,b)=>a-b);
+  status(`โหลดสำเร็จ ${fmt(rawRows.length)} ระเบียน · ตรวจสอบเมื่อ ${lastLoaded.toLocaleString('th-TH')} · วันที่ประกาศล่าสุดในข้อมูล ${allDates.length?dateTH(allDates[allDates.length-1]):'ไม่พบวันที่ที่อ่านได้'}`,'ok');
+ }catch(e){console.error(e);status('โหลดข้อมูลไม่สำเร็จ: '+e.message,'error');}
+ finally{$('loadBtn').disabled=false;document.body.classList.remove('loading')}
+}
+$('loadBtn').addEventListener('click',loadCSV);$('sampleBtn').addEventListener('click',()=>{$('csvUrl').value=DEFAULT_CSV;status('ใส่ URL ตั้งต้นแล้ว กด “โหลด / รีเฟรชข้อมูล” เพื่อดึงข้อมูล','')});
+$('provinceFilter').addEventListener('change',()=>{updateDistrictOptions();if(rawRows.length)renderCharts(filtered())});
+['districtFilter','sexFilter','ageFilter','dateFrom','dateTo'].forEach(id=>$(id).addEventListener('change',()=>{if(rawRows.length)renderCharts(filtered())}));
+$('resetBtn').addEventListener('click',()=>{['provinceFilter','districtFilter','sexFilter','ageFilter','dateFrom','dateTo'].forEach(id=>$(id).value='');updateDistrictOptions();if(rawRows.length)renderCharts(filtered())});
+$('csvUrl').value=DEFAULT_CSV;
+loadBoundaries();
+loadCSV();
+})();
+</script>
+</body>
+</html>
